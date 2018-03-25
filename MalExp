@@ -1,0 +1,69 @@
+// This code works by obtaining the address of the NtTerminateProcess function, if it's valid then we open a handle to our target process with the Win32 API function OpenProcess (kernel32.dll) and then we call NtTerminatProcess. Afterwards we check the NTSTATUS result so we know if it was succesful or not.
+
+// At the start we define the function structure with typedef for NtTerminateProcess so it knows the parameters we will be putting in.
+
+// REMEMBER TO CHANGE THE PID IN THE OpenProcess function call
+#include <iostream>
+#include <Windows.h>
+#include <winternl.h>
+using namespace std;
+
+// error codes for NtTerminateProcess
+#define STATUS_SUCCESS 0x00000000
+#define STATUS_ACCESS_DENIED 0xC0000022
+#define STATUS_INVALID_HANDLE 0xC0000008
+#define STATUS_OBJECT_TYPE_MISMATCH 0xC0000024
+#define STATUS_PROCESS_IS_TERMINATING 0xC000010A
+
+typedef NTSTATUS(NTAPI *pdef_NtTerminateProcess)(HANDLE ProcessHandle, NTSTATUS ExitStatus);
+
+int main()
+{
+       cout << "Attempting to obtain the address of NtTerminateProcess" << endl;
+
+       // get the address of NtTerminateProcess from ntdll
+       LPVOID lpFunctionAddress = GetProcAddress(LoadLibraryA("ntdll.dll"), "NtTerminateProcess");
+
+       if (lpFunctionAddress == 0) // if the address is NULL (0) then we cannot use it
+       {
+              cout << "Error: could not obtain the address of NtTerminateProcess!" << endl;
+              return 0; // exit the program
+       }
+       cout << "Attempting to obtain a handle to the target process" << endl;
+       HANDLE ProcessHandle = OpenProcess(PROCESS_TERMINATE, FALSE, 13408); // open a handle to the process with the PID we passed in (13952)
+       if (ProcessHandle == 0) // compare if the handle is 0, if it is then we cannot use it (fail)
+       {
+              cout << "Error: could not obtain a handle to the target process!" << endl;
+              return 0; // exit the program
+       }
+       pdef_NtTerminateProcess NtCall = (pdef_NtTerminateProcess)lpFunctionAddress; // set structure and to the address
+       NTSTATUS NtRet = NtCall(ProcessHandle, 0); // call the function and pass in the handle we created earlier, the 0 is for the ExitStatus however this can stay as 0
+ 
+if (NtRet == STATUS_SUCCESS) // check if the termination was a success
+       {
+              cout << "The process was successfully terminated from memory!" << endl;
+       }
+       else if (NtRet == STATUS_ACCESS_DENIED) // access denied
+       {
+              cout << "The process could not be terminated: Access Denied" << endl;
+       }
+       else if (NtRet == STATUS_INVALID_HANDLE) // incorrect handle
+       {
+              cout << "The process could not be terminated: invalid handle was passed as ProcessHandle parameter" << endl;
+       }
+       else if (NtRet == STATUS_OBJECT_TYPE_MISMATCH) // object mismatch
+       {
+              cout << "The process could not be terminated: object type mismatch" << endl;
+       }
+       else if (NtRet == STATUS_PROCESS_IS_TERMINATING) // process is already terminating
+       {
+              cout << "The process could not be terminated: the process is already terminating" << endl;
+       }
+       else // termination failed for another reason
+       {
+              // print out the error code with GetLastError() so we can look up the error code and find details on why termination failed
+              cout << "The process could not be terminated: error code " << GetLastError() << endl;
+       }
+       getchar(); // wait for us to respond before it exits program
+       return 0; // execution success
+}
