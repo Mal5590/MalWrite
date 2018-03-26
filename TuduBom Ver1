@@ -1,0 +1,103 @@
+#include "stdafx.h"
+#include <windows.h>
+#include<stdio.h>
+#include <winternl.h>
+#include <iostream>
+#include <tchar.h>
+using namespace std;
+
+typedef struct _SYSTEM_PROCESS_INFO
+{
+	ULONG                   NextEntryOffset;
+	ULONG                   NumberOfThreads;
+	LARGE_INTEGER           Reserved[3];
+	LARGE_INTEGER           CreateTime;
+	LARGE_INTEGER           UserTime;
+	LARGE_INTEGER           KernelTime;
+	UNICODE_STRING          ImageName;
+	ULONG                   BasePriority;
+	HANDLE                  ProcessId;
+	HANDLE                  InheritedFromProcessId;
+}SYSTEM_PROCESS_INFO, *PSYSTEM_PROCESS_INFO;
+
+
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+	STARTUPINFOA siTest;
+	GetStartupInfoA(&siTest);
+	
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+
+	NTSTATUS status;
+	PVOID buffer;
+	PSYSTEM_PROCESS_INFO spi;
+
+///////
+
+	buffer = VirtualAlloc(NULL, 1024 * 1024, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE); // We need to allocate a large buffer because the process list can be large.
+
+	if (!buffer)
+	{
+		printf("\nError: Unable to allocate memory for process list (%d)\n", GetLastError());
+		return -1;
+	}
+
+	printf("\nProcess list allocated at address %#x\n", buffer);
+	spi = (PSYSTEM_PROCESS_INFO)buffer;
+
+	if (!NT_SUCCESS(status = NtQuerySystemInformation(SystemProcessInformation, spi, 1024 * 1024, NULL)))
+	{
+		printf("\nError: Unable to query process list (%#x)\n", status);
+
+		VirtualFree(buffer, 0, MEM_RELEASE);
+		return -1;
+	}
+
+	while (spi->NextEntryOffset) // Loop over the list until we reach the last entry.
+	{
+		printf("\nProcess name: %ws | Process ID: %d\n", spi->ImageName.Buffer, spi->ProcessId); // Display process information.
+		spi = (PSYSTEM_PROCESS_INFO)((LPBYTE)spi + spi->NextEntryOffset); // Calculate the address of the next entry.
+	}
+
+	printf("\nPress any key to continue.\n");
+	getchar();
+
+	VirtualFree(buffer, 0, MEM_RELEASE); // Free the allocated buffer.
+///////
+
+	
+
+	cout << "Info proc type: " << info.dwProcessorType << endl;
+	cout << "Info num of procs: " << info.dwNumberOfProcessors << endl;
+
+	//testing StartUpInfo	
+	cout << "SiTest dwFileAtt :  " << siTest.dwFillAttribute << endl;
+	cout << "SiTest Flags: " << siTest.dwFlags << endl;
+
+	TCHAR name[] = _T("notepad");
+	STARTUPINFO si = { sizeof(si) };
+	PROCESS_INFORMATION pi;
+	BOOL success = CreateProcess(nullptr, name, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+	
+	if (!success)
+	{
+		return 1;
+	}
+
+	cout << "PID:  " << pi.dwProcessId << endl;
+
+	cout << "hProcess :  " << pi.hProcess;
+
+	WaitForSingleObject(pi.hProcess, INFINITE);
+	DWORD code;
+	GetExitCodeProcess(pi.hProcess, &code);
+	cout << "Notepad has exited. Exit code =" << code << endl;
+
+
+
+
+	return 0;
+
+}
