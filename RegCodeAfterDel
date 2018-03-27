@@ -1,0 +1,10 @@
+	// reg autorun
+	LPCWSTR str1 = TEXT("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run");
+	LPCWSTR str2 = TEXT("ZubiNaknakReg");
+
+	HKEY hkey;
+	LONG RegOpenResult;
+	const char PATH[] = "C:\\Users\\user\\source\\repos\\ZubiNaknak\\Debug";
+	RegOpenResult = RegOpenKeyEx(HKEY_LOCAL_MACHINE, str1, 0, KEY_ALL_ACCESS, &hkey);
+	RegSetValueEx(hkey, str2, 0, REG_SZ, (BYTE*)PATH, strlen(PATH));
+	RegCloseKey(hkey);
