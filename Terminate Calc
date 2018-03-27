@@ -1,0 +1,25 @@
+	// find process & terminate
+	HWND hCalc = FindWindow(nullptr, L"Calculator");
+	if (hCalc == nullptr)
+	{
+		printf("No calc running \n");
+		return 1;
+	}
+	DWORD pid;
+	DWORD tid = GetWindowThreadProcessId(hCalc, &pid);
+	HANDLE hProcess = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE, FALSE, pid);
+	if (hProcess)
+	{
+		Sleep(3000);
+		if (TerminateProcess(hProcess, 0))
+		{
+			WaitForSingleObject(hProcess, INFINITE);
+			printf("Calc terminated. \n");
+		}
+		else
+		{
+			printf("Error: %d\n", GetLastError());
+
+		}
+		CloseHandle(hProcess);
+	}
