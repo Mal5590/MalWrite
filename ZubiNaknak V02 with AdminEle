@@ -1,0 +1,271 @@
+#include "stdafx.h"
+#include <stdio.h>
+#include <windows.h>
+#include <winternl.h>
+#include <iostream>
+#include <tchar.h>
+using namespace std;
+
+typedef struct _SYSTEM_PROCESS_INFO
+{
+	ULONG                   NextEntryOffset;
+	ULONG                   NumberOfThreads;
+	LARGE_INTEGER           Reserved[3];
+	LARGE_INTEGER           CreateTime;
+	LARGE_INTEGER           UserTime;
+	LARGE_INTEGER           KernelTime;
+	UNICODE_STRING          ImageName;
+	ULONG                   BasePriority;
+	HANDLE                  ProcessId;
+	HANDLE                  InheritedFromProcessId;
+}SYSTEM_PROCESS_INFO, *PSYSTEM_PROCESS_INFO;
+
+DWORD WINAPI ThreadFun(LPVOID IpParam)
+{
+	return 0;
+}
+
+HANDLE C;
+DWORD WINAPI A(LPVOID in)
+{
+	while (1)
+	{
+		cout << "Im pickle rickkkkk" << endl;
+	}
+	return 0;
+}
+
+DWORD WINAPI B(LPVOID in)
+{
+	while (1)
+	{
+		cout << "Even A .. Going to suspend" << endl;
+		SuspendThread(C);
+		cout << "Even B .. Resuming Thread .." << endl;
+		ResumeThread(C);
+	}
+	return 0;
+}
+
+BOOL IsAppRunningAsAdminMode();
+
+
+
+int _tmain(int argc, _TCHAR* argv[])
+{
+
+
+
+	HANDLE hThread;
+	DWORD ThreadID;
+
+	STARTUPINFOA siTest;
+	GetStartupInfoA(&siTest);
+
+	SYSTEM_INFO info;
+	GetSystemInfo(&info);
+
+	NTSTATUS status;
+	PVOID buffer;
+	PSYSTEM_PROCESS_INFO spi;
+	
+
+	if (IsAppRunningAsAdminMode())
+		printf("\n Admin is OK TO GO !!!! \n");
+
+
+#pragma region Registry
+	// reg autorun
+	LPCWSTR str1 = TEXT("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run");
+	LPCWSTR str2 = TEXT("ZubiNaknakReg");
+
+	HKEY hkey;
+	LONG RegOpenResult;
+	const char PATH[] = "C:\\Users\\user\\source\\repos\\ZubiNaknak\\Debug";
+	RegOpenResult = RegOpenKeyEx(HKEY_LOCAL_MACHINE, str1, 0, KEY_ALL_ACCESS, &hkey);
+	RegSetValueEx(hkey, str2, 0, REG_SZ, (BYTE*)PATH, strlen(PATH));
+	RegCloseKey(hkey);
+#pragma endregion
+
+
+#pragma region Terminate Calc
+	// find process & terminate
+	HWND hCalc = FindWindow(nullptr, L"Calculator");
+	if (hCalc == nullptr)
+	{
+		printf("No calc running \n");
+		
+	}
+	DWORD pid;
+	DWORD tid = GetWindowThreadProcessId(hCalc, &pid);
+	HANDLE hProcess = OpenProcess(SYNCHRONIZE | PROCESS_TERMINATE, FALSE, pid);
+	if (hProcess)
+	{
+		Sleep(3000);
+		if (TerminateProcess(hProcess, 0))
+		{
+			WaitForSingleObject(hProcess, INFINITE);
+			printf("Calc terminated. \n");
+		}
+		else
+		{
+			printf("Error: %d\n", GetLastError());
+
+		}
+		CloseHandle(hProcess);
+	}
+#pragma endregion
+
+
+
+#pragma region CreateThread
+
+	hThread = CreateThread(NULL, 0, ThreadFun, NULL, 0, &ThreadID);
+
+	//C = CreateThread(NULL, 0, A, NULL, 0, NULL);
+	//CreateThread(NULL, 0, B, NULL, 0, NULL);
+	//cout << "After Suspend and Resume" << endl;
+
+
+	if (hThread == NULL)
+		cout << "Thread Failed" << endl;
+
+	cout << "Thread Creation sucess" << endl;
+	SuspendThread(hThread);
+	cout << "After Suspend " << endl;
+	ResumeThread(hThread);
+	cout << "After  Resume" << endl;
+
+	CloseHandle(hThread);
+
+
+
+
+#pragma endregion
+
+
+
+#pragma region Recon
+
+	//testing SystemInfo / StartupInfo 	
+	cout << "Info proc type: " << info.dwProcessorType << endl;
+	cout << "Info num of procs: " << info.dwNumberOfProcessors << endl;
+
+
+	cout << "SiTest dwFileAtt :  " << siTest.dwFillAttribute << endl;
+	cout << "SiTest Flags: " << siTest.dwFlags << endl;
+
+	// creating process and opening notepad
+	TCHAR name[] = _T("notepad");
+	STARTUPINFO si = { sizeof(si) };
+	PROCESS_INFORMATION pi;
+	BOOL success = CreateProcess(nullptr, name, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+
+	if (!success)
+	{
+		return 1;
+	}
+
+	cout << "PID:  " << pi.dwProcessId << endl;
+
+	cout << "hProcess :  " << pi.hProcess << endl;;
+
+	WaitForSingleObject(pi.hProcess, 0);
+	DWORD code;
+	GetExitCodeProcess(pi.hProcess, &code);
+	cout << "Notepad has exited. Exit code =" << code << endl;
+
+
+	/////// Get all Proccess that running ATM //////////////
+
+	buffer = VirtualAlloc(NULL, 1024 * 1024, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	// We need to allocate a large buffer because the process list can be large.
+
+	if (!buffer)
+	{
+		printf("\nError: Unable to allocate memory for process list (%d)\n", GetLastError());
+		return -1;
+	}
+
+	printf("\nProcess list allocated at address %#x\n", buffer);
+	spi = (PSYSTEM_PROCESS_INFO)buffer;
+
+	if (!NT_SUCCESS(status = NtQuerySystemInformation(SystemProcessInformation, spi, 1024 * 1024, NULL)))
+	{
+		printf("\nError: Unable to query process list (%#x)\n", status);
+
+		VirtualFree(buffer, 0, MEM_RELEASE);
+		return -1;
+	}
+
+	while (spi->NextEntryOffset)
+	{
+		printf("\nProcess name: %ws | Process ID: %d\n", spi->ImageName.Buffer, spi->ProcessId);
+		spi = (PSYSTEM_PROCESS_INFO)((LPBYTE)spi + spi->NextEntryOffset);
+	}
+
+
+	printf("\nPress any key to continue.\n");
+	getchar();
+
+	
+
+	VirtualFree(buffer, 0, MEM_RELEASE);
+
+
+
+	///////////////////////////////////
+
+
+#pragma endregion
+
+
+	return 0;
+
+}
+
+
+BOOL IsAppRunningAsAdminMode()
+{
+	BOOL fIsRunAsAdmin = FALSE;
+	DWORD dwError = ERROR_SUCCESS;
+	PSID pAdministratorsGroup = NULL;
+
+	// Allocate and initialize a SID of the administrators group.
+	SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
+	if (!AllocateAndInitializeSid(
+		&NtAuthority,
+		2,
+		SECURITY_BUILTIN_DOMAIN_RID,
+		DOMAIN_ALIAS_RID_ADMINS,
+		0, 0, 0, 0, 0, 0,
+		&pAdministratorsGroup))
+	{
+		dwError = GetLastError();
+		goto Cleanup;
+	}
+
+	// Determine whether the SID of administrators group is enabled in 
+	// the primary access token of the process.
+	if (!CheckTokenMembership(NULL, pAdministratorsGroup, &fIsRunAsAdmin))
+	{
+		dwError = GetLastError();
+		goto Cleanup;
+	}
+
+Cleanup:
+
+	if (pAdministratorsGroup)
+	{
+		FreeSid(pAdministratorsGroup);
+		pAdministratorsGroup = NULL;
+	}
+
+	// Throw the error if something failed in the function.
+	if (ERROR_SUCCESS != dwError)
+	{
+		throw dwError;
+	}
+
+	return fIsRunAsAdmin;
+}
