@@ -42,3 +42,30 @@ Cleanup:
 
     return fIsRunAsAdmin;
 }
+
+
+.......................
+
+wchar_t szPath[MAX_PATH];
+if (GetModuleFileName(NULL, szPath, ARRAYSIZE(szPath)))
+{
+    // Launch itself as admin
+    SHELLEXECUTEINFO sei = { sizeof(sei) };
+    sei.lpVerb = L"runas";
+    sei.lpFile = szPath;
+    sei.hwnd = NULL;
+    sei.nShow = SW_NORMAL;
+    if (!ShellExecuteEx(&sei))
+    {
+        DWORD dwError = GetLastError();
+        if (dwError == ERROR_CANCELLED)
+        {
+            // The user refused to allow privileges elevation.
+            std::cout << "User did not allow elevation" << std::endl;
+        }
+    }
+    else
+    {
+        _exit(1);  // Quit itself
+    }
+}
