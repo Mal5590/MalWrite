@@ -1,33 +1,26 @@
-    int src_fd, dst_fd, n, err;
-    unsigned char buffer[4096];
-    char * src_path, dst_path;
+static void CopyDirectory(DirectoryInfo source, DirectoryInfo destination)
+{
+            if (!destination.Exists)
+            {
+                destination.Create();
+            }
 
-    // Assume that the program takes two arguments the source path followed
-    // by the destination path.
+            // Copy all files.
+            FileInfo[] files = source.GetFiles();
+            foreach (FileInfo file in files)
+            {
+                file.CopyTo(Path.Combine(destination.FullName,
+                    file.Name));
+            }
 
-    if (argn != 3) {
-        printf("Wrong argument count.\n");
-        exit(1);
-    }
+            // Process subdirectories.
+            DirectoryInfo[] dirs = source.GetDirectories();
+            foreach (DirectoryInfo dir in dirs)
+            {
+                // Get destination directory.
+                string destinationDir = Path.Combine(destination.FullName, dir.Name);
 
-    src_path = argv[1];
-    dst_path = argv[2];
-
-    src_fd = open(src_path, O_RDONLY);
-    dst_fd = open(dst_path, O_CREAT | O_WRONLY);
-
-    while (1) {
-        err = read(src_fd, buffer, 4096);
-        if (err == -1) {
-            printf("Error reading file.\n");
-            exit(1);
-        }
-        n = err;
-
-        if (n == 0) break;
-
-        err = write(dst_fd, buffer, n);
-        if (err == -1) {
-            printf("Error writing to file.\n");
-            exit(1);
-        }
+                // Call CopyDirectory() recursively.
+                CopyDirectory(dir, new DirectoryInfo(destinationDir));
+            }
+}
