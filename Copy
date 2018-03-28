@@ -1,3 +1,7 @@
+DirectoryInfo src = new DirectoryInfo(@"E:\Test\Dir1");
+DirectoryInfo dest = new DirectoryInfo(@"C:\Dir2");
+CopyDirectory(src, dest);
+
 static void CopyDirectory(DirectoryInfo source, DirectoryInfo destination)
 {
             if (!destination.Exists)
